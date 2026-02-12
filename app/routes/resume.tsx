@@ -6,6 +6,7 @@ import { usePuterStore } from '~/lib/puter'
 import {useNavigate} from 'react-router'
 import Summary from '~/Components/Summary'
 import Details from '~/Components/Details'
+import ATS from '~/Components/ATS'
 
 
 export const meta = () => ([
@@ -57,7 +58,6 @@ const Resume = () => {
     <main className='!pt-0'>
         <nav className='resume-nav'>
             <Link to="/" className='back-button'>
-                <img src="/images/back.svg" alt="back" />
                 <span className='text-gray-800 text-sm font-semibold'>Back to Hompage</span>
             </Link>
 
