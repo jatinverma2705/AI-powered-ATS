@@ -1,46 +1,97 @@
 import type { Route } from "./+types/home";
 import NavBar from "~/Components/NavBar";
-import { resumes } from "../../constants";
 import ResumeCard from "~/Components/ResumeCard";
-import { useNavigate } from "react-router";
 import { usePuterStore } from "~/lib/puter";
-import {useEffect} from 'react';
+import { Link, useNavigate } from "react-router";
+import { useEffect, useState } from "react";
 
 export function meta({}: Route.MetaArgs) {
   return [
-    { title: "ResuMatch" },
-    { name: "description", content: "Smart feedback for you dream job!" },
+    { title: "Resumind" },
+    { name: "description", content: "Smart feedback for your dream job!" },
   ];
 }
 
 export default function Home() {
+  const { auth, kv, fs } = usePuterStore();
+  const navigate = useNavigate();
+  const [resumes, setResumes] = useState<Resume[]>([]);
+  const [loadingResumes, setLoadingResumes] = useState(false);
 
-   const {auth} = usePuterStore();
+  useEffect(() => {
+    if (!auth.isAuthenticated) navigate("/auth?next=/");
+  }, [auth.isAuthenticated]);
 
-    const navigate = useNavigate();
+  useEffect(() => {
+    const loadResumes = async () => {
+      setLoadingResumes(true);
 
-    useEffect(()=> {
-        if(!auth.isAuthenticated){
-            navigate('/auth?next=/');
-        }
-    },[auth.isAuthenticated])
-  return <main className="bg-[url('/images/bg-main.svg')] bg-cover">
-    <NavBar />
-    <section className="main-section">
-      <div className="page-heading py-16">
-        <h1>Track Your Applications & Resume Ratings</h1>
-        <h2>Review your submissions and check AI powered feedback</h2>
-      </div>
+      const kvItems = (await kv.list("resume:*", true)) as KVItem[];
 
-    {resumes.length > 0 && (
-      <div className="resumes-section">
-        {resumes.map((resume) => (
-          <ResumeCard key={resume.id} resume={resume} />
-        ))}
-      </div>
-    )}
+      const parsedResumes =
+        kvItems?.map((resume) => JSON.parse(resume.value) as Resume) || [];
 
-    </section>
-    
-  </main>;
+      // Load image blob URLs for each resume
+      const resumesWithImages = await Promise.all(
+        parsedResumes.map(async (resume) => {
+          try {
+            const imgBlob = await fs.read(resume.imagePath);
+            if (imgBlob) {
+              const imageUrl = URL.createObjectURL(imgBlob);
+              return { ...resume, imageUrl };
+            }
+          } catch (e) {
+            console.error(`Failed to load image for resume ${resume.id}`, e);
+          }
+          return { ...resume, imageUrl: "" };
+        }),
+      );
+
+      setResumes(resumesWithImages);
+      setLoadingResumes(false);
+    };
+
+    loadResumes();
+  }, []);
+
+  return (
+    <main className="bg-[url('/images/bg-main.svg')] bg-cover">
+      <NavBar />
+
+      <section className="main-section">
+        <div className="page-heading py-16">
+          <h1>Track Your Applications & Resume Ratings</h1>
+          {!loadingResumes && resumes?.length === 0 ? (
+            <h2>No resumes found. Upload your first resume to get feedback.</h2>
+          ) : (
+            <h2>Review your submissions and check AI-powered feedback.</h2>
+          )}
+        </div>
+        {loadingResumes && (
+          <div className="flex flex-col items-center justify-center">
+            <img src="/images/resume-scan-2.gif" className="w-[200px]" />
+          </div>
+        )}
+
+        {!loadingResumes && resumes.length > 0 && (
+          <div className="resumes-section">
+            {resumes.map((resume) => (
+              <ResumeCard key={resume.id} resume={resume} />
+            ))}
+          </div>
+        )}
+
+        {!loadingResumes && resumes?.length === 0 && (
+          <div className="flex flex-col items-center justify-center mt-10 gap-4">
+            <Link
+              to="/upload"
+              className="primary-button w-fit text-xl font-semibold"
+            >
+              Upload Resume
+            </Link>
+          </div>
+        )}
+      </section>
+    </main>
+  );
 }
